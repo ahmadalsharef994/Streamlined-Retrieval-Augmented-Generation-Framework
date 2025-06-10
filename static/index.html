@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Document Q&A</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        #question-form {
+            margin-bottom: 20px;
+        }
+        #question {
+            width: 70%;
+            padding: 10px;
+            font-size: 16px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        #answer-container {
+            border-left: 4px solid #4CAF50;
+            padding-left: 15px;
+            margin-top: 20px;
+        }
+        #sources-container {
+            margin-top: 20px;
+            font-size: 14px;
+            color: #666;
+        }
+        .source-item {
+            margin-bottom: 5px;
+        }
+        #loading {
+            display: none;
+            margin: 20px 0;
+        }
+        #metrics-container {
+            margin-top: 20px;
+            font-size: 14px;
+            background-color: #f8f8f8;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .metric-item {
+            margin-bottom: 5px;
+        }
+        #classification-container {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f0f8ff;
+            border-radius: 5px;
+        }
+        #follow-up-container {
+            margin-top: 20px;
+        }
+        .follow-up-question {
+            background-color: #f0f0f0;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .follow-up-question:hover {
+            background-color: #e0e0e0;
+        }
+        .warning-tag {
+            background-color: #ffdddd;
+            color: #ff0000;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Advanced Document Q&A</h1>
+    <p>Ask questions about the document content:</p>
+    
+    <form id="question-form">
+        <input type="text" id="question" placeholder="E.g., Who is Mr. Darcy?" required>
+        <button type="submit">Ask</button>
+    </form>
+    
+    <div id="loading">Thinking...</div>
+    
+    <div id="classification-container" style="display: none;">
+        <h3>Query Classification:</h3>
+        <div id="classification"></div>
+    </div>
+    
+    <div id="answer-container" style="display: none;">
+        <h2>Answer:</h2>
+        <div id="answer"></div>
+    </div>
+    
+    <div id="sources-container" style="display: none;">
+        <h3>Sources:</h3>
+        <div id="sources"></div>
+    </div>
+    
+    <div id="follow-up-container" style="display: none;">
+        <h3>Follow-up Questions:</h3>
+        <div id="follow-up-questions"></div>
+    </div>
+    
+    <div id="metrics-container" style="display: none;">
+        <h3>Performance Metrics:</h3>
+        <div id="metrics"></div>
+    </div>
+<script>
+    document.getElementById('question-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const question = document.getElementById('question').value;
+        if (!question) return;
+        
+        // Show loading indicator
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('answer-container').style.display = 'none';
+        document.getElementById('sources-container').style.display = 'none';
+        document.getElementById('follow-up-container').style.display = 'none';
+        document.getElementById('metrics-container').style.display = 'none';
+        
+        // Create form data
+        const formData = new FormData();
+        formData.append('q', question);
+        
+        try {
+            // Send request to API
+            const response = await fetch('/ask', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            // Display answer
+            document.getElementById('answer').textContent = data.answer;
+            document.getElementById('answer-container').style.display = 'block';
+            
+            // Display sources if available
+            if (data.sources && data.sources.length > 0) {
+                const sourcesDiv = document.getElementById('sources');
+                sourcesDiv.innerHTML = '';
+                
+                data.sources.forEach(source => {
+                    const sourceItem = document.createElement('div');
+                    sourceItem.className = 'source-item';
+                    sourceItem.textContent = `Page ${source.page + 1} from ${source.source.split('/').pop()}`;
+                    sourcesDiv.appendChild(sourceItem);
+                });
+                
+                document.getElementById('sources-container').style.display = 'block';
+            }
+            
+            // Display follow-up questions
+            if (data.follow_up_questions && data.follow_up_questions.length > 0) {
+                const followUpDiv = document.getElementById('follow-up-questions');
+                followUpDiv.innerHTML = '';
+                
+                data.follow_up_questions.forEach(question => {
+                    const questionItem = document.createElement('div');
+                    questionItem.className = 'follow-up-question';
+                    questionItem.textContent = question;
+                    questionItem.addEventListener('click', function() {
+                        document.getElementById('question').value = this.textContent;
+                        document.getElementById('question-form').dispatchEvent(new Event('submit'));
+                    });
+                    followUpDiv.appendChild(questionItem);
+                });
+                
+                document.getElementById('follow-up-container').style.display = 'block';
+            }
+            
+            // Display metrics
+            if (data.latency) {
+                const metricsDiv = document.getElementById('metrics-container');
+                metricsDiv.innerHTML = '<h3>Performance Metrics:</h3>';
+                
+                const metricsList = document.createElement('ul');
+                
+                for (const [key, value] of Object.entries(data.latency)) {
+                    const metricItem = document.createElement('li');
+                    metricItem.textContent = `${key}: ${value.toFixed(3)}s`;
+                    metricsList.appendChild(metricItem);
+                }
+                
+                const totalLatency = Object.values(data.latency).reduce((a, b) => a + b, 0);
+                const totalItem = document.createElement('li');
+                totalItem.innerHTML = `<strong>Total latency:</strong> ${totalLatency.toFixed(3)}s`;
+                metricsList.appendChild(totalItem);
+                
+                metricsDiv.appendChild(metricsList);
+                metricsDiv.style.display = 'block';
+            }
+            
+        } catch (error) {
+            document.getElementById('answer').textContent = 'Error: ' + error.message;
+            document.getElementById('answer-container').style.display = 'block';
+        } finally {
+            // Hide loading indicator
+            document.getElementById('loading').style.display = 'none';
+        }
+    });
+</script>
+</body>
+</html>
